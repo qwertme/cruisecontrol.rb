@@ -2,6 +2,7 @@ require 'fileutils'
 
 class Project
   @@plugin_names = []
+  @@project_file_filters = {}
 
   def self.plugin(plugin_name)
     @@plugin_names << plugin_name unless RAILS_ENV == 'test' or @@plugin_names.include? plugin_name
@@ -17,13 +18,21 @@ class Project
     end
   end
 
+  def self.add_project_file_filter(text, mask)
+    @@project_file_filters[text] = mask
+  end
+
+  def self.project_file_filters
+    @@project_file_filters
+  end
+
   def self.configure
     raise 'No project is currently being created' unless @project_in_the_works
     yield @project_in_the_works
   end
 
   attr_reader :name, :plugins, :build_command, :rake_task, :config_tracker, :path, :settings, :config_file_content, :error_message
-  attr_accessor :source_control, :scheduler, :project_file_filter
+  attr_accessor :source_control, :scheduler
 
   def initialize(name, scm = nil)
     @name = name
@@ -38,7 +47,6 @@ class Project
     @triggers = [ChangeInSourceControlTrigger.new(self)]
     self.source_control = scm if scm
     instantiate_plugins
-    @project_file_filter = {}
   end
 
   def source_control=(scm_adapter)

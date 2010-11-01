@@ -143,7 +143,7 @@ class BuildTest < Test::Unit::TestCase
     with_sandbox_project do |sandbox, project|
       expected_build_directory = File.join(sandbox.root, 'build-123')
       project.stubs(:config_file_content).returns("cool project settings with secret")
-      project.stubs(:project_file_filter).returns({ 'with secret' => '[filtered content]' })
+      Project.add_project_file_filter('with secret', '[filtered content]')
 
       build = Build.new(project, 123)
       build.stubs(:execute)

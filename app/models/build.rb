@@ -103,7 +103,7 @@ EOF
     @project_settings ||= contents_for_display(artifact('cruise_config.rb'))
 
     result = @project_settings
-    @project.project_file_filter.each { |k,v| result.gsub!(k, v) }
+    Project.project_file_filters.each { |k,v| result.gsub!(k, v) }
     return result
   end
 
