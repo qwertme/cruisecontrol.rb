@@ -16,14 +16,14 @@ class Project
       @project_in_the_works = nil
     end
   end
-  
+
   def self.configure
     raise 'No project is currently being created' unless @project_in_the_works
     yield @project_in_the_works
   end
 
   attr_reader :name, :plugins, :build_command, :rake_task, :config_tracker, :path, :settings, :config_file_content, :error_message
-  attr_accessor :source_control, :scheduler
+  attr_accessor :source_control, :scheduler, :project_file_filter
 
   def initialize(name, scm = nil)
     @name = name
@@ -38,8 +38,9 @@ class Project
     @triggers = [ChangeInSourceControlTrigger.new(self)]
     self.source_control = scm if scm
     instantiate_plugins
+    @project_file_filter = {}
   end
-  
+
   def source_control=(scm_adapter)
     scm_adapter.path = local_checkout
     @source_control = scm_adapter
@@ -61,7 +62,7 @@ class Project
       retried_after_update = false
       begin
         load_and_remember config_tracker.central_config_file
-      rescue Exception 
+      rescue Exception
         if retried_after_update
           raise
         else
@@ -109,11 +110,11 @@ class Project
   def method_missing(method_name, *args, &block)
     @plugins_by_name.key?(method_name) ? @plugins_by_name[method_name] : super
   end
-  
+
   def ==(another)
     another.is_a?(Project) and another.name == self.name
   end
-  
+
   def config_valid?
     @settings == @config_file_content
   end
@@ -145,33 +146,33 @@ class Project
 
   def builder_state_and_activity
     BuilderStatus.new(self).status
-  end 
-  
+  end
+
   def builder_error_message
     BuilderStatus.new(self).error_message
   end
-  
+
   def last_build
     builds.last
   end
-  
+
   def create_build(label)
     build = Build.new(self, label)
     build.artifacts_directory # create the build directory
     build
   end
-  
-  def previous_build(current_build)  
+
+  def previous_build(current_build)
     all_builds = builds
     index = get_build_index(all_builds, current_build.label)
-    
+
     if index > 0
       return all_builds[index-1]
-    else  
+    else
       return nil
     end
   end
-  
+
   def next_build(current_build)
     all_builds = builds
     index = get_build_index(all_builds, current_build.label)
@@ -182,7 +183,7 @@ class Project
       return all_builds[index + 1]
     end
   end
-  
+
   def last_complete_build
     builds.reverse.find { |build| !build.incomplete? }
   end
@@ -191,7 +192,7 @@ class Project
     # this could be optimized a lot
     builds.find { |build| build.label == label }
   end
-    
+
   def last_complete_build_status
     return "failed" if BuilderStatus.new(self).fatal?
     last_complete_build ? last_complete_build.status : 'never_built'
@@ -201,7 +202,7 @@ class Project
   def last_five_builds
     last_builds(5)
   end
-  
+
   def last_builds(n)
     result = builds.reverse[0..(n-1)]
   end
@@ -219,7 +220,7 @@ class Project
         notify(:build_loop_failed, e) rescue nil
         @build_loop_failed = true
         raise
-      end 
+      end
     ensure
       notify(:sleeping) unless @build_loop_failed rescue nil
     end
@@ -230,21 +231,21 @@ class Project
     if builds.empty?
       reasons << "This is the first build"
       true
-    else 
+    else
       @triggers.any? {|t| t.build_necessary?(reasons) }
     end
   end
-  
+
   def build_requested?
     File.file?(build_requested_flag_file)
   end
-  
+
   def request_build
     if builder_state_and_activity == 'builder_down'
       BuilderStarter.begin_builder(name)
       10.times do
         sleep 1.second
-        break if builder_state_and_activity != 'builder_down' 
+        break if builder_state_and_activity != 'builder_down'
       end
     end
     unless build_requested?
@@ -252,7 +253,7 @@ class Project
       create_build_requested_flag_file
     end
   end
-  
+
   def config_modified?
     if config_tracker.config_modified?
       notify :configuration_modified
@@ -261,17 +262,17 @@ class Project
       false
     end
   end
-  
+
   def build_if_requested
     if build_requested?
       remove_build_requested_flag_file
       build(source_control.latest_revision, ['Build was manually requested'])
     end
   end
-  
+
   def update_project_to_revision(build, revision)
     if do_clean_checkout?
-      File.open(build.artifact('source_control.log'), 'w') do |f| 
+      File.open(build.artifact('source_control.log'), 'w') do |f|
         start = Time.now
         f << "checking out build #{build.label}, this could take a while...\n"
         source_control.clean_checkout(revision, f)
@@ -281,7 +282,7 @@ class Project
       source_control.update(revision)
     end
   end
-  
+
   def build(revision = source_control.latest_revision, reasons = [])
     if Configuration.serialize_builds
       BuildSerializer.serialize(self) { build_without_serialization(revision, reasons) }
@@ -289,15 +290,15 @@ class Project
       build_without_serialization(revision, reasons)
     end
   end
-        
+
   def build_without_serialization(revision, reasons)
     return if revision.nil? # this will only happen in the case that there are no revisions yet
 
     notify(:build_initiated)
-    previous_build = last_build    
-    
+    previous_build = last_build
+
     build = Build.new(self, create_build_label(revision.number))
-    
+
     begin
       log_changeset(build.artifacts_directory, reasons)
       update_project_to_revision(build, revision)
@@ -307,7 +308,7 @@ class Project
         notify(:configuration_modified)
         throw :reload_project
       end
-    
+
       notify(:build_started, build)
       build.run
       notify(:build_finished, build)
@@ -329,7 +330,7 @@ class Project
 
   def notify(event, *event_parameters)
     errors = []
-    results = @plugins.collect do |plugin| 
+    results = @plugins.collect do |plugin|
       begin
         plugin.send(event, *event_parameters) if plugin.respond_to?(event)
       rescue => plugin_error
@@ -347,7 +348,7 @@ class Project
         errors << "#{plugin.class}: #{plugin_error.message}"
       end
     end
-    
+
     if errors.empty?
       return results.compact
     else
@@ -359,7 +360,7 @@ class Project
       raise error_message
     end
   end
-  
+
   def log_changeset(artifacts_directory, reasons)
     File.open(File.join(artifacts_directory, 'changeset.log'), 'w') do |f|
       reasons.each { |reason| f << reason.to_s << "\n" }
@@ -377,7 +378,7 @@ class Project
   def to_param
     self.name
   end
-  
+
   # possible values for this is :never, :always, :every => 1.hour, :every => 2.days, etc
   def do_clean_checkout(how_often = :always)
     unless how_often == :always || how_often == :never || (how_often[:every].is_a?(Integer))
@@ -385,7 +386,7 @@ class Project
     end
     @clean_checkout_when = how_often
   end
-  
+
   def do_clean_checkout?
     case @clean_checkout_when
     when :always: true
@@ -433,8 +434,8 @@ class Project
   end
 
   private
-  
-  # sorts a array of builds in order of revision number and rebuild number 
+
+  # sorts a array of builds in order of revision number and rebuild number
   def order_by_label(builds)
     if source_control.creates_ordered_build_labels?
       builds.sort_by do |build|
@@ -446,7 +447,7 @@ class Project
       builds.sort_by(&:time)
     end
   end
-    
+
   def create_build_label(revision_number)
     revision_number = revision_number.to_s
     build_labels = builds.map { |b| b.label }
@@ -458,11 +459,11 @@ class Project
     when [revision_number] then "#{revision_number}.1"
     else
       rebuild_numbers = related_builds.map { |label| label.split('.')[1] }.compact
-      last_rebuild_number = rebuild_numbers.sort_by { |x| x.to_i }.last 
+      last_rebuild_number = rebuild_numbers.sort_by { |x| x.to_i }.last
       "#{revision_number}.#{last_rebuild_number.next}"
     end
   end
-  
+
   def create_build_requested_flag_file
     FileUtils.touch(build_requested_flag_file)
   end
@@ -470,11 +471,11 @@ class Project
   def remove_build_requested_flag_file
     FileUtils.rm_f(Dir[build_requested_flag_file])
   end
-  
+
   def get_build_index(all_builds, build_label)
     result = 0;
     all_builds.each_with_index {|build, index| result = index if build.label == build_label}
-    result 
+    result
   end
 end
 
@@ -485,7 +486,7 @@ plugin_loader = Object.new
 
 def plugin_loader.load_plugin(plugin_path)
   plugin_file = File.basename(plugin_path).sub(/\.rb$/, '')
-  plugin_is_directory = (plugin_file == 'init')  
+  plugin_is_directory = (plugin_file == 'init')
   plugin_name = plugin_is_directory ? File.basename(File.dirname(plugin_path)) : plugin_file
 
   CruiseControl::Log.debug("Loading plugin #{plugin_name}")
