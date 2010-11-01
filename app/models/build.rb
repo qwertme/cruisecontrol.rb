@@ -101,10 +101,6 @@ EOF
 
   def project_settings
     @project_settings ||= contents_for_display(artifact('cruise_config.rb'))
-
-    result = @project_settings
-    Project.project_file_filters.each { |k,v| result.gsub!(k, v) }
-    return result
   end
 
   def error

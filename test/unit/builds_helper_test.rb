@@ -12,12 +12,18 @@ class BuildsHelperTest < Test::Unit::TestCase
   include ActionView::Helpers::UrlHelper
   include ActionView::Helpers::TagHelper
   include ActionView::Helpers::FormTagHelper
-  
+
   def setup
     @work_path = File.expand_path('/Users/jeremy/src/cruisecontrolrb/builds/CruiseControl/work')
     @project = Project.new('mine', FakeSourceControl.new)
   end
-  
+
+  def test_filter_project_settings
+    Project.add_project_file_filter('aaaaaa', '*******')
+
+    assert_equal 'some settings *******', filter_project_settings('some settings aaaaaa')
+  end
+
   def test_format_build_log_makes_test_summaries_bold
     assert_equal "Finished in 0.00723 seconds\n\n<div class=\"test-results\">3 examples, 2 failures</div> foo",
                  format_build_log("Finished in 0.00723 seconds\n\n3 examples, 2 failures foo")
@@ -33,12 +39,12 @@ class BuildsHelperTest < Test::Unit::TestCase
 <a href="/projects/code/mine/vendor/rails/activesupport/lib/active_support/dependencies.rb?line=477#477">/Users/jeremy/src/cruisecontrolrb/builds/CruiseControl/work/config/../vendor/rails/actionpack/lib/../../activesupport/lib/active_support/dependencies.rb:477</a>:in `const_missing'
 <a href="/projects/code/mine/test/unit/builder_status_test.rb?line=8#8">./test/unit/builder_status_test.rb:8</a>:in `setup'
     EOL
-    
+
     log = <<-EOL
 /Users/jeremy/src/cruisecontrolrb/builds/CruiseControl/work/config/../vendor/rails/actionpack/lib/../../activesupport/lib/active_support/dependencies.rb:477:in `const_missing'
 ./test/unit/builder_status_test.rb:8:in `setup'
     EOL
-    
+
     assert_equal expected, format_build_log(log)
   end
 
@@ -47,12 +53,12 @@ class BuildsHelperTest < Test::Unit::TestCase
 <a href="/projects/code/mine/test/unit/builder_status_test.rb?line=8#8">test/unit/builder_status_test.rb:8</a>:in `setup'
 <a href="/projects/code/mine/test/unit/builder_status_test.rb?line=8#8">\#{RAILS_ROOT}/test/unit/builder_status_test.rb:8</a>:in `setup'
     EOL
-    
+
     log = <<-EOL
 test/unit/builder_status_test.rb:8:in `setup'
 \#{RAILS_ROOT}/test/unit/builder_status_test.rb:8:in `setup'
     EOL
-    
+
     assert_equal expected, format_build_log(log)
   end
 
@@ -62,16 +68,16 @@ test/unit/builder_status_test.rb:8:in `setup'
 <a href="/projects/code/mine/index.html?line=30#30">../work/index.html:30</a>
 /ruby/gems/ruby.rb:25
     EOL
-    
+
     log = <<-EOL
 ../foo:20
 ../work/index.html:30
 /ruby/gems/ruby.rb:25
     EOL
-    
+
     assert_equal expected, format_build_log(log)
   end
-  
+
   # this is tested elsewhere in depth, this is a functional test
   def test_parse_test_results
     log = <<-EOL
@@ -87,7 +93,7 @@ NameError: uninitialized constant BuilderStatusTest::BuilderStatus
     ./test/unit/builder_status_test.rb:8:in `setup'
 
     EOL
-    
+
     expected = <<-EOL
 Name: test_build_loop_failed_creates_file__build_loop_failed__(BuilderStatusTest)
 Type: Error
@@ -105,26 +111,26 @@ Message: NameError: uninitialized constant BuilderStatusTest::BuilderStatus
 
 
     EOL
-    
+
     assert_equal expected, failures_and_errors_if_any(log)
   end
-  
+
   BuildStub = Struct.new :label, :time, :state # failed, incomplete
   class BuildStub
     def failed?() @state == 'failed' end
     def incomplete?() @state == 'incomplete' end
   end
-  
+
   def test_select_builds
     @build = BuildStub.new(4)
-    
+
     assert_equal "", select_builds([])
 
     assert_equal "<select id=\"build\" name=\"build\" onChange=\"this.form.submit();\">" +
                  "<option value=''>Older Builds...</option>" +
                  "<option value='1'>1 (1 Jan 06)</option>" +
                  "</select>", select_builds([BuildStub.new(1, Date.new(2006,1,1).to_time)])
-    
+
     @build = BuildStub.new(3)
     assert_equal "<select id=\"build\" name=\"build\" onChange=\"this.form.submit();\">" +
                  "<option value=''>Older Builds...</option>" +
@@ -148,11 +154,11 @@ Message: NameError: uninitialized constant BuilderStatusTest::BuilderStatus
       RED
       BLACK
     EOF
-    assert_equal expected_output, format_build_log(log_with_ansi_colors)    
+    assert_equal expected_output, format_build_log(log_with_ansi_colors)
   end
 
   private
-  
+
   def assert_builds(expected, actual)
     assert_equal expected, actual.map{|b| b.label}
   end

@@ -142,15 +142,14 @@ class BuildTest < Test::Unit::TestCase
   def test_run_stores_settings
     with_sandbox_project do |sandbox, project|
       expected_build_directory = File.join(sandbox.root, 'build-123')
-      project.stubs(:config_file_content).returns("cool project settings with secret")
-      Project.add_project_file_filter('with secret', '[filtered content]')
+      project.stubs(:config_file_content).returns("cool project settings")
 
       build = Build.new(project, 123)
       build.stubs(:execute)
 
       build.run
-      assert_equal 'cool project settings with secret', SandboxFile.new(Dir['build-123-success.in*s/cruise_config.rb'][0]).contents
-      assert_equal 'cool project settings [filtered content]', Build.new(project, 123).project_settings
+      assert_equal 'cool project settings', SandboxFile.new(Dir['build-123-success.in*s/cruise_config.rb'][0]).contents
+      assert_equal 'cool project settings', Build.new(project, 123).project_settings
     end
   end
 

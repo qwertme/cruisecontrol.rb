@@ -7,17 +7,17 @@ module BuildsHelper
       "<option value='#{build.label}'>#{text_to_build(build, false)}</option>"
     end
     options.unshift "<option value=''>Older Builds...</option>"
-    
+
     select_tag "build", options, :onChange => "this.form.submit();"
   end
-  
+
   def format_build_log(log)
     strip_ansi_colors(highlight_test_count(link_to_code(h(log))))
   end
-  
+
   def link_to_code(log)
     @work_path ||= File.expand_path(@project.path + '/work')
-    
+
     log.gsub(/(\#\{RAILS_ROOT\}\/)?([\w\.-]*\/[ \w\/\.-]+)\:(\d+)/) do |match|
       path = File.expand_path($2, @work_path)
       line = $3
@@ -29,7 +29,13 @@ module BuildsHelper
       end
     end
   end
-  
+
+  def filter_project_settings(settings)
+    result = settings
+    Project.project_file_filters.each { |k,v| result.gsub!(k, v) }
+    return result
+  end
+
   def format_project_settings(settings)
     settings = settings.strip
     if settings.empty?
@@ -39,14 +45,14 @@ module BuildsHelper
       h(settings)
     end
   end
-  
+
   def failures_and_errors_if_any(log)
     errors = BuildLogParser.new(log).failures_and_errors
     return nil if errors.empty?
-    
+
     link_to_code(errors.collect{|error| format_test_error_output(error)}.join)
   end
-  
+
   def format_test_error_output(test_error)
     message = test_error.message
 
